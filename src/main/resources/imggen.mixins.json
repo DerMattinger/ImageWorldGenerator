@@ -4,12 +4,13 @@
   "package": "eu.pollux28.imggen.mixins",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
-    "MixinGeneratorOptions",
-    "MixinLakesGenerator",
     "MixinAbstractPiglinEntity",
     "MixinAbstractPiglinEntityInvoker",
+    "MixinCarverInvoker",
+    "MixinGeneratorOptions",
     "MixinHoglinEntity",
     "MixinHoglinEntityInvoker",
+    "MixinLakesGenerator",
     "MixinNetherForestSurfaceBuilder",
     "MixinNetherSurfaceBuilder",
     "MixinValleySurfaceBuilder"
