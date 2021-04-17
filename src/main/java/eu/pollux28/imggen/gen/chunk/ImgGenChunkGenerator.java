@@ -405,7 +405,8 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
                 }else if(cat == Biome.Category.THEEND){
                     blockState = END_STONE;
                 }
-                biome.buildSurface(chunkRandom, chunk, o, p, q, e, blockState, blockStateF, seaLevel, region.getSeed());
+                //ignores the buildSurface operation (instead the world will keep the exported surface terrain from WorldPainter)
+                //biome.buildSurface(chunkRandom, chunk, o, p, q, e, blockState, blockStateF, seaLevel, region.getSeed());
 
             }
         }
@@ -637,9 +638,10 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
                                     }else if(world.getRegistryManager().get(Registry.BIOME_KEY).getId(biome2) == BiomeKeys.THE_VOID.getValue()){
                                         blockState = Blocks.VOID_AIR.getDefaultState();
                                     }
-                                    chunkSection.setBlockState(af, w, al, blockState, false);
-                                    heightmap.trackUpdate(af, v, al, blockState);
-                                    heightmap2.trackUpdate(af, v, al, blockState);
+                                    //ignores the setBlockState operation (instead the world will keep the exported underground terrain from WorldPainter)
+                                    //chunkSection.setBlockState(af, w, al, blockState, false);
+                                    //heightmap.trackUpdate(af, v, al, blockState);
+                                    //heightmap2.trackUpdate(af, v, al, blockState);
                                 }
                             }
                         }
