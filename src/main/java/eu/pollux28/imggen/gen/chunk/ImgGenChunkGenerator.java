@@ -310,8 +310,12 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
 
     public int getHeight(int x, int z, Heightmap.Type heightmapType) {
         if(ImgGen.CONFIG.customHeightMap){
-            if(heightMapSource.heightMapDataProvider.isInImage(x,z)||ImgGen.CONFIG.repeatImage){
-                return this.heightMapSource.getHeight(x,z)+1;
+            if(heightMapSource.heightMapDataProvider.isInImage(x,z)||ImgGen.CONFIG.repeatHeightMapImage){
+                int height = this.heightMapSource.getHeight(x,z);
+                if(heightmapType== Heightmap.Type.WORLD_SURFACE_WG){
+                    return Math.max(height, seaLevel);
+                }
+                return height;
             }
         }
         return this.sampleHeightmap(x, z, null, heightmapType.getBlockPredicate());
@@ -391,8 +395,8 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
                 int p = l + n;
                 int q = chunk.sampleHeightmap(Heightmap.Type.WORLD_SURFACE_WG, m, n) + 1;
                 int z = this.seaLevel;
-                if(ImgGen.CONFIG.customHeightMap&&heightMapSource.heightMapDataProvider.isInImage(o,p)||ImgGen.CONFIG.repeatImage){
-                    z = heightMapSource.getHeight(o,p)+1;
+                if(ImgGen.CONFIG.customHeightMap&&heightMapSource.heightMapDataProvider.isInImage(o,p)||ImgGen.CONFIG.repeatHeightMapImage){
+                    z = heightMapSource.getHeight(o,p);
                 }
                 double e = this.surfaceDepthNoise.sample((double)o * 0.0625D, (double)p * 0.0625D, 0.0625D, (double)m * 0.0625D) * 15.0D;
                 Biome biome = region.getBiome(mutable.set(k + m, q, l + n));
@@ -405,7 +409,6 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
                 }else if(cat == Biome.Category.THEEND){
                     blockState = END_STONE;
                 }
-                //ignores the buildSurface operation (instead the world will keep the exported surface terrain from WorldPainter)
                 //biome.buildSurface(chunkRandom, chunk, o, p, q, e, blockState, blockStateF, seaLevel, region.getSeed());
 
             }
@@ -601,7 +604,7 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
                                 Biome biome2 = biomeT[af][al];
                                 Biome.Category cat = biome2.getCategory();
                                 if(ImgGen.CONFIG.customHeightMap) {
-                                    if(this.heightMapSource.heightMapDataProvider.isInImage(ae,ak)||ImgGen.CONFIG.repeatImage){
+                                    if(this.heightMapSource.heightMapDataProvider.isInImage(ae,ak)||ImgGen.CONFIG.repeatHeightMapImage){
                                         int height = heightT[af][al];
                                         if(height>this.seaLevel){
                                             blockState=this.defaultBlock;
@@ -638,7 +641,6 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
                                     }else if(world.getRegistryManager().get(Registry.BIOME_KEY).getId(biome2) == BiomeKeys.THE_VOID.getValue()){
                                         blockState = Blocks.VOID_AIR.getDefaultState();
                                     }
-                                    //ignores the setBlockState operation (instead the world will keep the exported underground terrain from WorldPainter)
                                     //chunkSection.setBlockState(af, w, al, blockState, false);
                                     //heightmap.trackUpdate(af, v, al, blockState);
                                     //heightmap2.trackUpdate(af, v, al, blockState);
@@ -677,7 +679,7 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
                     chunkRandom.setCarverSeed(seed + (long)n, l, m);
                     if (configuredCarver.shouldCarve(chunkRandom, l, m)) {
                         if(ImgGen.CONFIG.customHeightMap){
-                            if(heightMapSource.heightMapDataProvider.isInImage(j*16+l,k*16+m)||ImgGen.CONFIG.repeatImage){
+                            if(heightMapSource.heightMapDataProvider.isInImage(j*16+l,k*16+m)||ImgGen.CONFIG.repeatHeightMapImage){
                                 configuredCarver.carve(chunk, biomeAccess::getBiome, chunkRandom, chunk.getHighestNonEmptySectionYOffset()-16, l, m, j, k, bitSet);
                                 continue;
                             }
@@ -752,14 +754,16 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
     public void setStructureStarts(DynamicRegistryManager dynamicRegistryManager, StructureAccessor structureAccessor, Chunk chunk, StructureManager structureManager, long worldSeed) {
         ChunkPos chunkPos = chunk.getPos();
         Biome biome = this.biomeSource.getBiomeForNoiseGen((chunkPos.x << 2) + 2, 0, (chunkPos.z << 2) + 2);
-        if(ImgGen.CONFIG.customStructures){
+        if(ImgGen.CONFIG.customStructures||ImgGen.CONFIG.useBlackList){
             if(this.structuresSource == null){
                 this.structuresSource = new StructuresSource(dynamicRegistryManager.get(Registry.CONFIGURED_STRUCTURE_FEATURE_WORLDGEN));
             }
-            for (Object o : structuresSource.getStructuresInPos(chunkPos)) {
-                if(o!=null) {
-                    ConfiguredStructureFeature<?, ?> configuredStructureFeature = (ConfiguredStructureFeature<?, ?>) o;
-                    this.setStructureStart(configuredStructureFeature, dynamicRegistryManager, structureAccessor, chunk, structureManager, worldSeed, chunkPos, biome, true);
+            if(ImgGen.CONFIG.customStructures){
+                for (Object o : structuresSource.getStructuresInPos(chunkPos)) {
+                    if(o!=null) {
+                        ConfiguredStructureFeature<?, ?> configuredStructureFeature = (ConfiguredStructureFeature<?, ?>) o;
+                        this.setStructureStart(configuredStructureFeature, dynamicRegistryManager, structureAccessor, chunk, structureManager, worldSeed, chunkPos, biome, true);
+                    }
                 }
             }
         }
@@ -777,17 +781,27 @@ public class ImgGenChunkGenerator extends ChunkGenerator{
         StructureStart<?> structureStart = structureAccessor.getStructureStart(ChunkSectionPos.from(chunk.getPos(), 0), configuredStructureFeature.feature, chunk);
         int i = structureStart != null ? structureStart.getReferences() : 0;
         StructureConfig structureConfig = this.structuresConfig.getForType(configuredStructureFeature.feature);
-        if (structureConfig != null) {
-            if(bl){
-                StructureStart<FeatureConfig> structureStart2 = (StructureStart<FeatureConfig>) configuredStructureFeature.feature.createStart(chunkPos.x, chunkPos.z, BlockBox.empty(), i, worldSeed);
-                structureStart2.init(dynamicRegistryManager, this, structureManager, chunkPos.x, chunkPos.z, biome, configuredStructureFeature.config);
-                structureAccessor.setStructureStart(ChunkSectionPos.from(chunk.getPos(), 0), configuredStructureFeature.feature, structureStart2, chunk);
-            }else{
-                StructureStart<?> structureStart2 = configuredStructureFeature.tryPlaceStart(dynamicRegistryManager, this, this.biomeSource, structureManager, worldSeed, chunkPos, biome, i, structureConfig);
-                structureAccessor.setStructureStart(ChunkSectionPos.from(chunk.getPos(), 0), configuredStructureFeature.feature, structureStart2, chunk);
+        if(ImgGen.CONFIG.customStructures||ImgGen.CONFIG.useBlackList){
+            if (structureConfig != null) {
+                if(bl){
+                    if(ImgGen.CONFIG.useBlackList&&(ImgGen.CONFIG.blackListApplication ==1||ImgGen.CONFIG.blackListApplication ==2)){
+                        if(this.structuresSource.configuredStructureFeaturesBlackList.contains(configuredStructureFeature.feature)) return;
+                    }
+                    StructureStart<FeatureConfig> structureStart2 = (StructureStart<FeatureConfig>) configuredStructureFeature.feature.createStart(chunkPos.x, chunkPos.z, BlockBox.empty(), i, worldSeed);
+                    structureStart2.init(dynamicRegistryManager, this, structureManager, chunkPos.x, chunkPos.z, biome, configuredStructureFeature.config);
+                    structureAccessor.setStructureStart(ChunkSectionPos.from(chunk.getPos(), 0), configuredStructureFeature.feature, structureStart2, chunk);
+                }else{
+                    if(ImgGen.CONFIG.useBlackList&&(ImgGen.CONFIG.blackListApplication ==0||ImgGen.CONFIG.blackListApplication==2)){
+                        if(this.structuresSource.configuredStructureFeaturesBlackList.contains(configuredStructureFeature.feature)) return;
+                    }
+                    StructureStart<?> structureStart2 = configuredStructureFeature.tryPlaceStart(dynamicRegistryManager, this, this.biomeSource, structureManager, worldSeed, chunkPos, biome, i, structureConfig);
+                    structureAccessor.setStructureStart(ChunkSectionPos.from(chunk.getPos(), 0), configuredStructureFeature.feature, structureStart2, chunk);
+                }
             }
+        }else{
+            StructureStart<?> structureStart2 = configuredStructureFeature.tryPlaceStart(dynamicRegistryManager, this, this.biomeSource, structureManager, worldSeed, chunkPos, biome, i, structureConfig);
+            structureAccessor.setStructureStart(ChunkSectionPos.from(chunk.getPos(), 0), configuredStructureFeature.feature, structureStart2, chunk);
         }
-
     }
 
     public void addStructureReferences(StructureWorldAccess structureWorldAccess, StructureAccessor accessor, Chunk chunk) {
